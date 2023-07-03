@@ -1,0 +1,426 @@
+import Ajv from 'ajv';
+import Ajv2019 from 'ajv/dist/2019.js';
+import Ajv2020 from 'ajv/dist/2020.js';
+import AjvDraft07 from 'ajv';
+import addFormats from 'ajv-formats';
+import axios from 'axios';
+import moment from "moment";
+import { base64url, importJWK, JWK, jwtVerify } from 'jose';
+import { defaultVerifyOptions, DetailedVerifyResults, VerifyOptions } from "../types/issue.types";
+import { PublicKeyResolver } from './ResolverInterfaces/PublicKeyResolver';
+import { LegalEntityResolver } from './ResolverInterfaces/LegalEntityResolver';
+
+/** Verifiable Credential Class */
+export abstract class VC {
+	verifyOptions: VerifyOptions = defaultVerifyOptions;
+
+
+	constructor(
+		protected publicKeyResolvers: PublicKeyResolver[] = [],
+		protected legalEntityResolvers: LegalEntityResolver[] = []) { }
+
+
+	public addLegalEntityResolver(legalEntityResolver: LegalEntityResolver): this {
+		this.legalEntityResolvers.push(legalEntityResolver);
+		return this;
+	}
+
+	public addPublicKeyResolver(publicKeyResolver: PublicKeyResolver): this {
+		this.publicKeyResolvers.push(publicKeyResolver);
+		return this;
+	}
+
+	public abstract verify(options?: VerifyOptions): Promise<{ result: boolean, msg: string }>;
+
+	/**
+	 * Helper function to select the correct constructor according to the VC format that is inserted.
+	 * @param credential Credential Payload
+	 * @returns - A new JwtVC or LdpVC Object
+	 * @throws 'INVALID_CREDENTIAL_TYPE' error if credential provided is neither a string nor an object
+	 * @example Build a JWT VC.
+	 * ```ts
+	 * const credential = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJoZWxsbyI6IndvcmxkIn0.eH9qoMvdv...'
+	 * vcBuilder(credential)
+	 * ```
+	 */
+	public static vcBuilder(credential: any): VC {
+		if (typeof credential == 'string') {
+			return new JwtVC(credential);
+		}
+		else {
+			throw new Error('INVALID_CREDENTIAL_TYPE')
+		}
+	}
+}
+
+
+/**
+ * Verifiable Credential using JWT (JSON Web Token)
+ */
+export class JwtVC extends VC {
+	public jwtHeaderJson: {
+		alg?: string;
+		kid?: string;
+		jwk?: JWK;
+		typ?: string;
+	};
+
+	public jwtPayloadJson: {
+		iat?: number;
+		iss?: string;
+		sub?: string;
+		exp?: number;
+		nbf?: number;
+		jti?: string;
+		aud?: string;
+		vc: any;
+	};
+
+	public jwtProof: string;
+
+	constructor(public credential: string) {
+		super();
+		this.jwtHeaderJson = JSON.parse(new TextDecoder().decode(base64url.decode(credential.split('.')[0])));
+		this.jwtPayloadJson = JSON.parse(new TextDecoder().decode(base64url.decode(credential.split('.')[1])));
+		this.jwtProof = credential.split('.')[2];
+	}
+
+	/**
+	 * Get Credential Issuer
+	 * @returns "iss" (Issuer) Claim value from Credential Payload
+	 */
+	public getIssuer(): string {
+		return this.jwtPayloadJson.iss as string;
+	}
+
+	/**
+	 * Get Audience
+	 * @returns "aud" (Audience) Claim value from Credential Payload
+	 */
+	public getAudience(): string | undefined {
+		return this.jwtPayloadJson.aud;
+	}
+
+	/**
+	 * Get Unique Identifier
+	 * @returns "jti" (Identifier) Claim value from Credential Payload
+	 */
+	public getIdentifier(): string | undefined {
+		return this.jwtPayloadJson.jti;
+	}
+
+	/**
+	 * Get Subject
+	 * @returns "sub" (Subject) Claim value from Credential Payload
+	 */
+	public getSubject(): string | undefined {
+		return this.jwtPayloadJson.sub;
+	}
+
+	/**
+	 * Get Issuance Date
+	 * @returns "iat" (Issued At) Claim value from Credential Payload
+	 */
+	public getIssDate(): number | undefined {
+		return this.jwtPayloadJson.iat;
+	}
+
+	/**
+	 * Validate Verifiable Credential
+	 * @param audience - Audience string
+	 * @param options - Options to disable selected verification checks or provide different APIs
+	 */
+	public async verify(options?: VerifyOptions): Promise<{ result: boolean, msg: string, validations: DetailedVerifyResults }> {
+
+		if (options != undefined)
+			this.verifyOptions = options;
+
+		let errorMsgs: string[] = [];
+		let result = true;
+		let validations: DetailedVerifyResults = {
+			constraintValidation: undefined,
+			signatureValidation: undefined,
+			attributeMappingValidation: undefined,
+			schemaValidation: undefined
+		}
+		try {
+
+			if(this.verifyOptions.constraintValidation === true) {
+				try {
+					await this.vcJwtConstraintValidation();
+					validations.constraintValidation = true;
+				}
+				catch (err) {
+					result = false;
+					errorMsgs.push(err as string);
+					validations.constraintValidation = false;
+				}
+			}
+
+			if (this.verifyOptions.signatureValidation === true) {
+				try {
+					await this.vcJwtSignatureValidation();
+					validations.signatureValidation = true;
+				}
+				catch (err) {
+					result = false;
+					errorMsgs.push(err as string);
+					validations.signatureValidation = false;
+				}
+			}
+
+			if (this.verifyOptions.attributeMappingValidation === true) {
+				try {
+					await this.vcJwtAttributeMappingValidation();
+					validations.attributeMappingValidation = true;
+				}
+				catch (err) {
+					result = false;
+					errorMsgs.push(err as string);
+					validations.attributeMappingValidation = false;
+				}
+			}
+
+			if (this.verifyOptions.schemaValidation === true) {
+				try {
+					await this.vcJwtSchemaValidation();
+					validations.schemaValidation = true;
+				}
+				catch (err) {
+					result = false;
+					errorMsgs.push(err as string);
+					validations.schemaValidation = false;
+				}
+			}
+		}
+		catch (err) {
+			console.error(err as string);
+			result = false;
+		}
+
+		const msg: string = errorMsgs.join();
+
+		// console.log(`Verifiable Credential Validation Complete: ${ result ? 'SUCCESS' : 'FAILURE'}`);
+		return {result, msg, validations};
+	}
+
+	/**
+	 * Validate JWT Constraints
+	 * @returns void
+	 * @throws 'EXPIRED' error if VC expiration date has passed
+	 * @throws 'INVALID_NBF' error if current date is before NBF (not before) date
+	 */
+	private async vcJwtConstraintValidation() {
+		const curDate = Date.now();
+
+		// Check if vc has expired
+		if(this.jwtPayloadJson.exp) {
+			const expirationDate = this.jwtPayloadJson.exp * 1000;
+			if( curDate >= expirationDate) {
+				console.error('Verifiable Credential has expired');
+				throw new Error('EXPIRED');
+			}
+		}
+		
+		// Check if it is too early to use vc
+		if(this.jwtPayloadJson.nbf) {
+			const validFromDate = this.jwtPayloadJson.nbf * 1000;
+			if( curDate <= validFromDate) {
+				console.error('Verifiable Credential cannot be accessed before nbf date');
+				throw new Error('INVALID_NBF');
+			}
+		}
+
+		// // Check audience
+		// const vcAud = this.jwtPayloadJson.aud;
+		// if(vcAud != undefined && audience !== vcAud ) {
+		// 	console.error('Verifiable Credential audience does not match jwt aud');
+		// 	throw new Error('INVALID_AUD');
+		// }
+
+		// console.log('VC JWT Constraint Validation: OK');
+	}
+
+	private async vcJwtSignatureValidation() {
+
+		// Check 1: Check Trusted Issuers Registry
+		let existsInTIR: boolean = false;
+		try {
+			let resolverResults = await Promise.all(this.legalEntityResolvers.map(resolver => resolver.isLegalEntity(this.getIssuer())));
+			if (resolverResults.length == 0) {
+				throw new Error("ISSUER_NOT_TRUSTED")
+			}
+			existsInTIR = resolverResults[0];
+			if (!existsInTIR)
+				throw new Error("ISSUER_NOT_TRUSTED")
+		}
+		catch(e) {
+			existsInTIR = false
+			throw new Error('ISSUER_NOT_TRUSTED');
+		}
+
+
+		// Step 2: Check DID Registry
+		// EBSI_JWT_VC_004  JWT signature MUST be valid
+		let publicKeyJwk;
+		try {
+			let resolverResults = await Promise.all(this.publicKeyResolvers.map(resolver => resolver.getPublicKeyJwk(this.jwtHeaderJson.kid as string)));
+			if (resolverResults.length == 0) {
+				throw "Couldn't resolve the public key for the issuer";
+			}
+			publicKeyJwk = resolverResults[0];
+		}
+		catch(e) {
+			throw "Couldn't resolve the public key for the issuer" + e;
+		}
+
+		let ecPublicKey;
+		try {
+			ecPublicKey = await importJWK(publicKeyJwk, this.jwtHeaderJson.alg);
+		}
+		catch(e) {
+			throw "Error while importing public key of issuer: " + e;
+		}
+
+
+		try {
+			await jwtVerify(this.credential, ecPublicKey);
+		}
+		catch(e) {
+			throw new Error('JWT_VERIFY_ERR');
+		}
+
+		// console.log('VC JWT SIGNATURE Validation: OK');
+	}
+	
+	private async vcJwtAttributeMappingValidation(): Promise<boolean> {
+
+		// ref: https://ec.europa.eu/digital-building-blocks/wikis/display/EBSIDOC/Verifiable+Credential+and+Verifiable+Presentation+validation+process
+		// EBSI_JWT_VC_001  JWT Claim -> vc Property match
+		// iat → issued
+		if (this.jwtPayloadJson.iat !== moment(this.jwtPayloadJson.vc.issued).unix()) {
+			console.error('JWT iat and vc issued do not match');
+			throw new Error('IAT_ISSUED_MISMATCH');
+		}
+
+		// nbf → validFrom/issuanceDate
+		if(this.jwtPayloadJson.nbf != moment(this.jwtPayloadJson.vc.validFrom).unix()){
+			console.error('JWT nbf and vc validFrom do not match');
+			throw new Error('NBF_VALIDFROM_MISMATCH');
+		}
+		if(this.jwtPayloadJson.nbf != moment(this.jwtPayloadJson.vc.issuanceDate).unix()){
+			console.error('JWT nbf and vc issuanceDate do not match');
+			throw new Error('NBF_ISSUANCEDATE_MISMATCH');
+		}
+
+		// exp → expirationDate
+		if(this.jwtPayloadJson.exp !== moment(this.jwtPayloadJson.vc.expirationDate).unix()){
+			if(this.jwtPayloadJson.exp !== undefined || this.jwtPayloadJson.vc.expirationDate !== undefined ){
+				console.error('JWT exp and vc expirationDate do not match');
+				throw new Error('EXP_EXPIRATIONDATE_MISMATCH');
+			}
+		}
+
+		// jti → id
+		if(this.jwtPayloadJson.jti !== this.jwtPayloadJson.vc.id){
+			console.error('JWT jti and vc id do not match');
+			throw new Error('JTI_ID_MISMATCH');
+		}
+
+		// iss → issuer
+		if(this.jwtPayloadJson.iss != this.jwtPayloadJson.vc.issuer){
+			console.error('JWT iss and vc issuer do not match');
+			throw new Error('ISS_ISSUER_MISMATCH');
+		}
+
+		// sub → credentialSubject.id
+		if(this.jwtPayloadJson.sub != this.jwtPayloadJson.vc.credentialSubject.id){
+			console.error('JWT sub and vc credentialSubject.id do not match');
+			throw new Error('SUB_CREDENTIALSUBJECTID_MISMATCH');
+		}
+
+
+		// EBSI_JWT_VC_002  JWT header kid related to the issuer
+		if(this.jwtHeaderJson.kid) {
+			const pureIssuer = this.jwtHeaderJson.kid.split('#')[0];
+			if(!(pureIssuer === this.jwtPayloadJson.vc.issuer)) {
+				console.error('JWT kid does not come from vc issuer');
+				throw new Error('KID_ISSUER_MISMATCH');
+			}
+		}
+
+		return true;
+	}
+
+
+	private async vcJwtSchemaValidation() {
+
+		const axiosTimeout: number = 5000;
+
+		// Get current schema
+		const schemaUri = this.jwtPayloadJson.vc.credentialSchema.id;
+
+		const schemaStr = await axios.get(schemaUri,
+			{timeout: axiosTimeout})
+			.catch(() => {throw new Error('SCHEMA_TIMEOUT')});
+		const schema = schemaStr.data;
+
+		var ajv: Ajv;
+		switch (schema.$schema) {
+			case "https://json-schema.org/draft/2020-12/schema": {
+				ajv = new Ajv2020({ allErrors: true });
+				break;
+			}
+			case "https://json-schema.org/draft/2019-09/schema": {
+				ajv = new Ajv2019({ allErrors: true });
+				break;
+			}
+			case "http://json-schema.org/draft-07/schema#": {
+				ajv = new AjvDraft07({ allErrors: true });
+				break;
+			}
+			default: {
+				console.error(`Unknown version "${schema.$schema}"`);
+				throw new Error('UNKNOWN_SCHEMA_VERSION');
+			}
+		}
+		addFormats(ajv);
+		ajv.addSchema(schema, schemaUri);
+
+		// Get external schemas, if any, starting with current schema
+		var curSchema = schema;
+		while(curSchema !== undefined && curSchema.allOf !== undefined) {
+			for (let i = 0; i < curSchema.allOf.length; i++) {
+				const element = curSchema.allOf[i];
+				if (element.$ref) {
+					const extSchemaUri = element.$ref;
+					const extSchemaStr = await axios.get(extSchemaUri,
+						{timeout: axiosTimeout})
+						.catch(() => {throw new Error('EXT_SCHEMA_TIMEOUT')});
+					const extSchema = extSchemaStr.data;
+					ajv.addSchema(extSchema,element.$ref);
+					curSchema = extSchema;
+					break;	// recursively get external schemas of the external schema
+				}
+			}
+		}
+
+		const validate = ajv.compile(schema);
+		const valid = validate(this.jwtPayloadJson.vc);
+		if(!valid){
+			let errorArray: string[] = [];
+			if(validate.errors) {
+				validate.errors.forEach(error => {
+					if(error.message){
+						errorArray.push(error.message);
+					}
+				});
+			}
+			const errorStr: string = errorArray.toString();
+
+			console.error('VC failed to pass JSON Schema validation. Errors: \n'+errorStr);
+			throw new Error('VC_SCHEMA_VALIDATION_FAIL');
+		}
+		return true;
+	}
+}
