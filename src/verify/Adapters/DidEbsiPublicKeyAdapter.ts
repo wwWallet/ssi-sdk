@@ -35,17 +35,3 @@ export class DidEbsiPublicKeyAdapter implements PublicKeyResolver {
 }
 
 export const didEbsiPublicKeyAdapter = new DidEbsiPublicKeyAdapter();
-
-// const body = response.data;
-// let verificationMethodsSearch = body.verificationMethod.filter((vm: { id: string; }) => vm.id == verificationMethod);
-// if (verificationMethodsSearch.length != 0) {
-// 	verificationMethodsSearch = verificationMethodsSearch[0];
-// }
-// else {
-// 	throw new Error("Error in EBSIPublicKeyAdapter: Failed to find the verification method on the EBSI DID Registry");
-// }
-
-// if (!verificationMethodsSearch.publicKeyJwk) {
-// 	throw new Error("Error in EBSIPublicKeyAdapter: 'publicKeyJwk' attribute does not exist on verification method");
-// }
-// return verificationMethodsSearch.publicKeyJwk as JWK;
