@@ -71,7 +71,7 @@ export async function getPublicKeyFromDid(did: string): Promise<JWK> {
 			else
 				console.error('Public Key JWK is undefined');
 		else
-			console.error('Verifrication method is undefined');
+			console.error('Verification method is undefined');
 		
 		throw new Error('Error fetching public key');
 }

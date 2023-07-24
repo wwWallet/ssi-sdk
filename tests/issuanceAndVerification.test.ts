@@ -1,6 +1,6 @@
 import { importJWK } from "jose";
 
-import { SignVerifiableCredentialJWT, NaturalPersonWallet, SignVerifiablePresentationJWT, JwtVP, VC, ebsiPublicKeyAdapter, ebsiTrustedIssuerAdapter } from '../src';
+import { SignVerifiableCredentialJWT, NaturalPersonWallet, SignVerifiablePresentationJWT, JwtVP, VC, didKeyPublicKeyAdapter, ebsiTrustedIssuerAdapter } from '../src';
 
 
 describe("Issuance Testing", () => {
@@ -40,7 +40,7 @@ describe("Issuance Testing", () => {
 		// Verify a VC (minimal setup)
 		const vc = VC.vcBuilder(vcjwt)
 			.addLegalEntityResolver(ebsiTrustedIssuerAdapter)
-			.addPublicKeyResolver(ebsiPublicKeyAdapter);
+			.addPublicKeyResolver(didKeyPublicKeyAdapter);
 		const res = await vc.verify({
 			signatureValidation: false,
 			schemaValidation: false,
