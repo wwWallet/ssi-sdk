@@ -2,6 +2,7 @@ export * from "./verify/vc";
 export * from "./verify/Adapters/DidEbsiPublicKeyAdapter";
 export * from "./verify/Adapters/DidKeyPublicKeyAdapter";
 export * from "./verify/Adapters/EbsiTrustedIssuerAdapter";
+export * from "./verify/PublicKeyResolverBuilder";
 export * from "./verify/vp";
 export * from './verify/index'
 export * from "./issue/sign-vc";

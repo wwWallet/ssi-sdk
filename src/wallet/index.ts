@@ -1,7 +1,9 @@
 import * as jose from 'jose';
 import { JWK } from 'jose';
-import { Resolver } from 'did-resolver';
-import { util, getResolver } from '@cef-ebsi/key-did-resolver';
+import PublicKeyResolverBuilder from '../verify/PublicKeyResolverBuilder';
+import { didKeyPublicKeyAdapter } from '../verify/Adapters/DidKeyPublicKeyAdapter';
+import { didEbsiPublicKeyAdapter } from '../verify/Adapters/DidEbsiPublicKeyAdapter';
+import { util } from '@cef-ebsi/key-did-resolver';
 
 export type WalletKey = {
 	privateKey: JWK,
@@ -11,7 +13,9 @@ export type WalletKey = {
 	verificationMethod: string,
 }
 
-
+const resolverBuilder = new PublicKeyResolverBuilder()
+	.addPublicKeyResolver(didKeyPublicKeyAdapter)
+	.addPublicKeyResolver(didEbsiPublicKeyAdapter);
 
 export class NaturalPersonWallet {
 
@@ -52,26 +56,15 @@ export class NaturalPersonWallet {
 
 export async function getPublicKeyFromDid(did: string): Promise<JWK> {
 	try {
-			util.validateDid(did);
+		const publicKeyJwk: JWK | null = await resolverBuilder.resolve(did);
+
+		if (!publicKeyJwk) {
+			throw new Error("Couldn't resolve the public key for the DID");
 		}
-		catch(error) {
-			console.error('Unable to get public key from did: invalid did');
-			console.error(`did: ${did}, error: ${error}`);
-			throw new Error('INVALID_DID');
-		}
-
-		const keyResolver = getResolver();
-		const didResolver = new Resolver(keyResolver);
-
-		const doc = await didResolver.resolve(did);
-
-		if(doc.didDocument?.verificationMethod)
-			if (doc.didDocument?.verificationMethod[0].publicKeyJwk)
-				return doc.didDocument?.verificationMethod[0].publicKeyJwk;
-			else
-				console.error('Public Key JWK is undefined');
-		else
-			console.error('Verification method is undefined');
-		
-		throw new Error('Error fetching public key');
+		console.log('Resolved Public Key:', publicKeyJwk);
+		return publicKeyJwk;
+	} catch (error) {
+		console.error('Error resolving public key:', error);
+		throw new Error("Couldn't resolve the public key for the DID");
+	}
 }

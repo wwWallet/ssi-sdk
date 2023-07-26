@@ -7,8 +7,10 @@ import axios from 'axios';
 import moment from "moment";
 import { base64url, importJWK, JWK, jwtVerify } from 'jose';
 import { defaultVerifyOptions, DetailedVerifyResults, VerifyOptions } from "../types/issue.types";
-import { PublicKeyResolver } from './ResolverInterfaces/PublicKeyResolver';
 import { LegalEntityResolver } from './ResolverInterfaces/LegalEntityResolver';
+import PublicKeyResolverBuilder from './PublicKeyResolverBuilder';
+import { didKeyPublicKeyAdapter } from './Adapters/DidKeyPublicKeyAdapter';
+import { didEbsiPublicKeyAdapter } from './Adapters/DidEbsiPublicKeyAdapter';
 
 /** Verifiable Credential Class */
 export abstract class VC {
@@ -16,17 +18,12 @@ export abstract class VC {
 
 
 	constructor(
-		protected publicKeyResolvers: PublicKeyResolver[] = [],
-		protected legalEntityResolvers: LegalEntityResolver[] = []) { }
+		protected legalEntityResolvers: LegalEntityResolver[] = []
+	) { }
 
 
 	public addLegalEntityResolver(legalEntityResolver: LegalEntityResolver): this {
 		this.legalEntityResolvers.push(legalEntityResolver);
-		return this;
-	}
-
-	public addPublicKeyResolver(publicKeyResolver: PublicKeyResolver): this {
-		this.publicKeyResolvers.push(publicKeyResolver);
 		return this;
 	}
 
@@ -262,16 +259,22 @@ export class JwtVC extends VC {
 
 		// Step 2: Check DID Registry
 		// EBSI_JWT_VC_004  JWT signature MUST be valid
-		let publicKeyJwk;
+		let publicKeyJwk: JWK | null;
+		const resolverBuilder = new PublicKeyResolverBuilder()
+			.addPublicKeyResolver(didKeyPublicKeyAdapter)
+			.addPublicKeyResolver(didEbsiPublicKeyAdapter);
 		try {
-			let resolverResults = await Promise.all(this.publicKeyResolvers.map(resolver => resolver.getPublicKeyJwk(this.jwtHeaderJson.kid as string)));
-			if (resolverResults.length == 0) {
-				throw "Couldn't resolve the public key for the issuer";
+			const verificationMethod = this.jwtHeaderJson.kid as string;
+
+			publicKeyJwk = await resolverBuilder.resolve(verificationMethod);
+
+			if (!publicKeyJwk) {
+				throw new Error("Couldn't resolve the public key for the issuer");
 			}
-			publicKeyJwk = resolverResults[0];
-		}
-		catch(e) {
-			throw "Couldn't resolve the public key for the issuer" + e;
+			console.log('Resolved Public Key:', publicKeyJwk);
+		} catch (e) {
+			console.error('Error resolving public key:', e);
+			throw new Error("Couldn't resolve the public key for the issuer");
 		}
 
 		let ecPublicKey;

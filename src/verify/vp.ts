@@ -5,23 +5,21 @@ import AjvDraft07 from 'ajv';
 import addFormats from 'ajv-formats';
 import axios from "axios";
 import moment from "moment";
-import { base64url, importJWK, jwtVerify } from "jose";
+import { base64url, importJWK, JWK, jwtVerify } from "jose";
 import { defaultVerifyOptions, DetailedVerifyResults, VerifyOptions } from "../types/issue.types";
 import { VC } from "./vc";
 import { LegalEntityResolver } from "./ResolverInterfaces/LegalEntityResolver";
-import { PublicKeyResolver } from "./ResolverInterfaces/PublicKeyResolver";
+import PublicKeyResolverBuilder from './PublicKeyResolverBuilder';
+import { didKeyPublicKeyAdapter } from './Adapters/DidKeyPublicKeyAdapter';
+import { didEbsiPublicKeyAdapter } from './Adapters/DidEbsiPublicKeyAdapter';
 
 export abstract class VP {
 	verifyOptions: VerifyOptions = defaultVerifyOptions;
 
-	constructor(protected publicKeyResolvers: PublicKeyResolver[] = [],
-		protected legalEntityResolvers: LegalEntityResolver[] = []) { }
+	constructor(
+		protected legalEntityResolvers: LegalEntityResolver[] = []
+	) { }
 
-	public addPublicKeyResolver(publicKeyResolver: PublicKeyResolver): this {
-		this.publicKeyResolvers.push(publicKeyResolver);
-		return this;
-	}
-		
 	public addLegalEntityResolver(legalEntityResolver: LegalEntityResolver): this {
 		this.legalEntityResolvers.push(legalEntityResolver);
 		return this;
@@ -222,16 +220,22 @@ export class JwtVP extends VP {
 	private async vpJwtSignatureValidation() {
 
 
-		let publicKeyJwk;
+		let publicKeyJwk: JWK | null;
+		const resolverBuilder = new PublicKeyResolverBuilder()
+			.addPublicKeyResolver(didKeyPublicKeyAdapter)
+			.addPublicKeyResolver(didEbsiPublicKeyAdapter);
 		try {
-			let resolverResults = await Promise.all(this.publicKeyResolvers.map(resolver => resolver.getPublicKeyJwk(this.jwtHeaderJson.kid as string)));
-			if (resolverResults.length == 0) {
-				throw "Couldn't resolve the public key for the issuer";
+			const verificationMethod = this.jwtHeaderJson.kid as string;
+
+			publicKeyJwk = await resolverBuilder.resolve(verificationMethod);
+
+			if (!publicKeyJwk) {
+				throw new Error("Couldn't resolve the public key for the issuer");
 			}
-			publicKeyJwk = resolverResults[0];
-		}
-		catch(e) {
-			throw "Couldn't resolve the public key for the issuer" + e;
+			console.log('Resolved Public Key:', publicKeyJwk);
+		} catch (e) {
+			console.error('Error resolving public key:', e);
+			throw new Error("Couldn't resolve the public key for the issuer");
 		}
 
 		// Step 1. Import Holder's public key
