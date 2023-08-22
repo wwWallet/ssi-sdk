@@ -6,9 +6,9 @@ import { SignVerifiableCredentialJWT, NaturalPersonWallet, SignVerifiablePresent
 describe("Issuance Testing", () => {
 	test("Main test", async () => {
 		// create two wallets
-		const wallet = await new NaturalPersonWallet().createWallet("ES256"); 
+		const wallet = await new NaturalPersonWallet().createWallet("EdDSA"); 
 		const wallet2 = await new NaturalPersonWallet().createWallet("ES256"); 
-
+		console.log(wallet)
 		// wallet issues vc for wallet2
 		const credentialSubject = {
 			id: wallet2.key.did,
@@ -61,7 +61,7 @@ describe("Issuance Testing", () => {
 			.sign(holderPrivateKey);
 			
 		const vp = new JwtVP(vpjwt);
-		await vp.verify(wallet.key.did, {
+		await vp.verify(wallet.key.did, "1233efw23d2e4f4f", undefined, {
 			schemaValidation: false,
 			signatureValidation: false,
 			constraintValidation: false

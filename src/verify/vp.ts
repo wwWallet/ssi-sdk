@@ -7,11 +7,13 @@ import axios from "axios";
 import moment from "moment";
 import { base64url, importJWK, JWK, jwtVerify } from "jose";
 import { defaultVerifyOptions, DetailedVerifyResults, VerifyOptions } from "../types/issue.types";
-import { VC } from "./vc";
+import { JwtVC, VC } from "./vc";
 import { LegalEntityResolver } from "./ResolverInterfaces/LegalEntityResolver";
 import PublicKeyResolverBuilder from './PublicKeyResolverBuilder';
 import { didKeyPublicKeyAdapter } from './Adapters/DidKeyPublicKeyAdapter';
 import { didEbsiPublicKeyAdapter } from './Adapters/DidEbsiPublicKeyAdapter';
+import { PresentationSubmission } from "src/types";
+import { JSONPath } from "jsonpath-plus";
 
 export abstract class VP {
 	verifyOptions: VerifyOptions = defaultVerifyOptions;
@@ -25,7 +27,7 @@ export abstract class VP {
 		return this;
 	}
 
-	public abstract verify(audience: string | string[], options?: VerifyOptions): Promise<{ result: boolean }>;
+	public abstract verify(audience: string | string[], nonce: string, presentationSubmission: PresentationSubmission, options?: VerifyOptions): Promise<{ result: boolean }>;
 	
 }
 
@@ -44,6 +46,7 @@ export class JwtVP extends VP {
 		nbf?: number;
 		jti?: string;
 		aud?: string | string[];
+		nonce: string;
 		vp: {
 			verifiableCredential: any[]; // contains a list of VCs (can be of any format jwt_vc, ldp_vp)
 			[x: string]: any;
@@ -92,10 +95,29 @@ export class JwtVP extends VP {
 	 * @param options - Change the options to suppress checks in developer mode
 	 * @returns 
 	 */
-	public async verify(audience: string | string[], options?: VerifyOptions): Promise<{ result: boolean, msg: string, validations: DetailedVerifyResults }> {
+	public async verify(audience: string | string[], nonce: string, presentationSubmission?: PresentationSubmission, options?: VerifyOptions): Promise<{ result: boolean, msg: string, validations: DetailedVerifyResults }> {
+
+		if (nonce !== this.jwtPayloadJson.nonce)
+			return { result: false, msg: "Incorrect nonce", validations: { attributeMappingValidation: false, constraintValidation: false, schemaValidation: false, signatureValidation: false}};
 
 		if (options != undefined)
 			this.verifyOptions = options;
+		if (presentationSubmission) {
+			for (const elem of presentationSubmission.descriptor_map) {
+				const path = elem.path_nested?.path;
+				if (!path) {
+					throw new Error("Nested path is missing");
+				}
+				const jwt = JSONPath({ path: path, json: this.jwtPayloadJson.vp });
+				const vc = new JwtVC(jwt);
+				if (vc.jwtPayloadJson.exp && vc.jwtPayloadJson.exp < Date.now()) {
+					throw new Error("presentation_submission.descriptor_map[x].id is expired");
+				}
+				if (vc.jwtPayloadJson.nbf && vc.jwtPayloadJson.nbf > Date.now()) {
+					throw new Error("presentation_submission.descriptor_map[x].id is not yet valid");
+				}
+			}
+		}
 
 		var result = true;
 		var validations: DetailedVerifyResults = {

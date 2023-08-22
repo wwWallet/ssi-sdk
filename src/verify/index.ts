@@ -88,9 +88,8 @@ export class Verify {
       path: `$.constraints.fields[*]`,
       json: descriptor,
     }) as InputDescriptorConstraintFieldType[];
-    const vcJSON = JSON.parse(
-			base64url.decode(vcjwt.split(".")[1])
-    ).vc;
+		const payload = JSON.parse(base64url.decode(vcjwt.split(".")[1]))
+		const vcJSON = payload.vc;
     for (const field of fieldsList) {
       const paths = field.path;
       const filter = field.filter; // is a json schema

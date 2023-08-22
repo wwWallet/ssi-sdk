@@ -40,6 +40,7 @@
   "dependencies": {
     "@cef-ebsi/ebsi-did-resolver": "^3.1.0",
     "@cef-ebsi/key-did-resolver": "^1.0.0",
+    "@transmute/jose-ld": "^0.7.0-unstable.81",
     "ajv": "^8.11.0",
     "ajv-formats": "^2.1.1",
     "axios": "^0.27.2",
