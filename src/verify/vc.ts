@@ -5,12 +5,16 @@ import AjvDraft07 from 'ajv';
 import addFormats from 'ajv-formats';
 import axios from 'axios';
 import moment from "moment";
-import { base64url, importJWK, JWK, jwtVerify } from 'jose';
+import { importJWK, JWK, jwtVerify } from 'jose';
 import { defaultVerifyOptions, DetailedVerifyResults, VerifyOptions } from "../types/issue.types";
 import { LegalEntityResolver } from './ResolverInterfaces/LegalEntityResolver';
 import PublicKeyResolverBuilder from './PublicKeyResolverBuilder';
 import { didKeyPublicKeyAdapter } from './Adapters/DidKeyPublicKeyAdapter';
 import { didEbsiPublicKeyAdapter } from './Adapters/DidEbsiPublicKeyAdapter';
+import base64url from "base64url";
+import { JsonWebKey2020, Secp256k1KeyPair } from "@transmute/secp256k1-key-pair";
+import { JWS } from '@transmute/jose-ld';
+
 
 /** Verifiable Credential Class */
 export abstract class VC {
@@ -41,11 +45,16 @@ export abstract class VC {
 	 * ```
 	 */
 	public static vcBuilder(credential: any): VC {
-		if (typeof credential == 'string') {
-			return new JwtVC(credential);
+		try {
+			if (JSON.parse(base64url.decode(credential.split('.')[0])).typ === 'JWT') {
+				return new JwtVC(credential);
+			}
+			else {
+				throw new Error('INVALID_CREDENTIAL_TYPE')
+			}
 		}
-		else {
-			throw new Error('INVALID_CREDENTIAL_TYPE')
+		catch(e) {
+			return new LdpVC(JSON.parse(credential));
 		}
 	}
 }
@@ -77,8 +86,8 @@ export class JwtVC extends VC {
 
 	constructor(public credential: string) {
 		super();
-		this.jwtHeaderJson = JSON.parse(new TextDecoder().decode(base64url.decode(credential.split('.')[0])));
-		this.jwtPayloadJson = JSON.parse(new TextDecoder().decode(base64url.decode(credential.split('.')[1])));
+		this.jwtHeaderJson = JSON.parse(base64url.decode(credential.split('.')[0]));
+		this.jwtPayloadJson = JSON.parse(base64url.decode(credential.split('.')[1]));
 		this.jwtProof = credential.split('.')[2];
 	}
 
@@ -426,4 +435,67 @@ export class JwtVC extends VC {
 		}
 		return true;
 	}
+}
+
+/**
+ * Verifiable Credential using JSON-LD
+ */
+export class LdpVC extends VC {
+	public vc: any;
+	constructor(public credential: any) {
+		super();
+		console.log("cred: ", credential);
+		this.vc = credential;
+	}
+
+	/**
+	 * Validate Verifiable Credential
+	 * @param audience - Audience string
+	 * @param options - Options to disable selected verification checks or provide different APIs
+	 */
+	public async verify(options?: VerifyOptions): Promise<{ result: boolean, msg: string, validations: DetailedVerifyResults }> {
+		console.log("Verify LDP VC: ", this.vc)
+		console.log("Verify method: ", this.vc.proof.verificationMethod)
+		if (options != undefined) {
+			this.verifyOptions = options;
+		} else {
+			throw new Error("No keys given for verification");
+		}
+
+		let errorMsgs: string[] = [];
+		let result = true;
+		let validations: DetailedVerifyResults = {
+			constraintValidation: undefined,
+			signatureValidation: undefined,
+			attributeMappingValidation: undefined,
+			schemaValidation: undefined
+		}
+		const signatureValue = this.vc.proof.proofValue;
+
+		// Prepare the data for verification (exclude the 'proof' section)
+		const dataToVerify = this.vc;
+		delete dataToVerify.proof;
+		console.log("dataToVerify: ", dataToVerify)
+		const jsonwebkey2020: JsonWebKey2020 = {
+			id: "1",
+			type: 'JsonWebKey2020',
+			controller: "",
+			privateKeyJwk: options.keys.privateKeyJwk,
+			publicKeyJwk: options.keys.publicKeyJwk
+		}
+		const k = await Secp256k1KeyPair.from(jsonwebkey2020);
+		const verifier = JWS.createVerifier(k.verifier(), 'ES256K', {
+			detached: false,
+		});
+		result = await verifier.verify({
+			data: dataToVerify,
+			signature: signatureValue,
+		});
+
+		const msg: string = errorMsgs.join();
+
+		console.log(`Verifiable Credential Validation Complete: ${ result ? 'SUCCESS' : 'FAILURE'}`);
+		return { result, msg, validations };
+	}
+
 }

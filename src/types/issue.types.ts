@@ -3,6 +3,7 @@ export type VerifyOptions = {
 	signatureValidation?: boolean;
 	attributeMappingValidation?: boolean; // for jwt
 	schemaValidation?: boolean;
+	keys?: any; // for ldp
 }
 
 export type DetailedVerifyResults = {

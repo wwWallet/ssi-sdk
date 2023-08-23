@@ -21,7 +21,7 @@ export class NaturalPersonWallet {
 
 	key: WalletKey = { privateKey: {}, publicKey: {}, did: "", alg: "", verificationMethod: "" };
 
-	public async createWallet(alg: 'ES256'): Promise<this> {
+	public async createWallet(alg:string = 'ES256'): Promise<this> {
 		const { publicKey, privateKey } = await jose.generateKeyPair(alg);
 
 		const publicKeyJWK = await jose.exportJWK(publicKey);
