@@ -35,10 +35,6 @@ describe("Issuance JWT Testing", () => {
 			.setProtectedHeader({ alg: wallet.key.alg, typ: "JWT", kid: wallet.key.verificationMethod })
 			.sign(issuerPrivateKey);
 
-		// console.log("JWT VC is: ", vcjwt);
-		// console.log(JSON.parse(base64url.decode(vcjwt.split('.')[0])))
-
-
 		// Verify a VC (minimal setup)
 		const vc = VC.vcBuilder(vcjwt)
 			.addLegalEntityResolver(ebsiTrustedIssuerAdapter);
@@ -119,7 +115,6 @@ describe("Issuance LDP Testing", () => {
 		expect(vcldp).toBeTruthy();
 
 		// Verify a VC (minimal setup)
-		// TODO only the public key should be enough, find a way to omit keys from options
 		const vc = VC.vcBuilder(vcldp)
 			.addLegalEntityResolver(ebsiTrustedIssuerAdapter);
 		const res = await vc.verify({
@@ -168,6 +163,7 @@ describe("Issuance LDP Testing", () => {
 			.setHolder(didDocumentIssuer.id)
 			.setNonce("1233efw23d2e4f4f")
 			.setExpirationTime('1m')
+			.setVerificationMethod(verificationMethod)
 			.setVerifiableCredential([vcldp])
 			.sign(keysIssuer[0], "EcdsaSecp256k1Signature2019");
 		console.log("vpldp: ", vpldp)

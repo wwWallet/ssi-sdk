@@ -14,7 +14,8 @@ import { didEbsiPublicKeyAdapter } from './Adapters/DidEbsiPublicKeyAdapter';
 import base64url from "base64url";
 import { JsonWebKey2020, Secp256k1KeyPair } from "@transmute/secp256k1-key-pair";
 import { JWS } from '@transmute/jose-ld';
-
+import * as secp256k1 from '@transmute/did-key-secp256k1';
+import { PublicNodeWithPublicKeyJwk } from '@transmute/ld-key-pair';
 
 /** Verifiable Credential Class */
 export abstract class VC {
@@ -454,14 +455,16 @@ export class LdpVC extends VC {
 	 * @param options - Options to disable selected verification checks or provide different APIs
 	 */
 	public async verify(options?: VerifyOptions): Promise<{ result: boolean, msg: string, validations: DetailedVerifyResults }> {
-		console.log("Verify LDP VC: ", this.vc)
-		console.log("Verify method: ", this.vc.proof.verificationMethod)
 		if (options != undefined) {
 			this.verifyOptions = options;
-		} else {
-			throw new Error("No keys given for verification");
 		}
+		const { didDocument } = await secp256k1.resolve(
+			this.vc.proof.verificationMethod,
+			{ accept: 'application/did+json' }
+		);
 
+		const publicKey = (didDocument.verificationMethod[0] as PublicNodeWithPublicKeyJwk).publicKeyJwk;
+		const controller = didDocument.verificationMethod[0].controller;
 		let errorMsgs: string[] = [];
 		let result = true;
 		let validations: DetailedVerifyResults = {
@@ -475,13 +478,12 @@ export class LdpVC extends VC {
 		// Prepare the data for verification (exclude the 'proof' section)
 		const dataToVerify = this.vc;
 		delete dataToVerify.proof;
-		console.log("dataToVerify: ", dataToVerify)
 		const jsonwebkey2020: JsonWebKey2020 = {
 			id: "1",
 			type: 'JsonWebKey2020',
-			controller: "",
-			privateKeyJwk: options.keys.privateKeyJwk,
-			publicKeyJwk: options.keys.publicKeyJwk
+			controller: controller,
+			privateKeyJwk: null,
+			publicKeyJwk: publicKey
 		}
 		const k = await Secp256k1KeyPair.from(jsonwebkey2020);
 		const verifier = JWS.createVerifier(k.verifier(), 'ES256K', {

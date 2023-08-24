@@ -14,6 +14,8 @@ import { didKeyPublicKeyAdapter } from './Adapters/DidKeyPublicKeyAdapter';
 import { didEbsiPublicKeyAdapter } from './Adapters/DidEbsiPublicKeyAdapter';
 import { JsonWebKey2020, Secp256k1KeyPair } from "@transmute/secp256k1-key-pair";
 import { JWS } from "@transmute/jose-ld";
+import * as secp256k1 from '@transmute/did-key-secp256k1';
+import { PublicNodeWithPublicKeyJwk } from '@transmute/ld-key-pair';
 
 export abstract class VP {
 	verifyOptions: VerifyOptions = defaultVerifyOptions;
@@ -430,12 +432,17 @@ export class LdpVP extends VP {
 	 * @returns 
 	 */
 	public async verify(audience: string | string[], options?: VerifyOptions | undefined): Promise<{ result: boolean , msg: string, validations: DetailedVerifyResults}> {
+		console.log("proof: ", this.vp.proof);
 		console.log("aud: ", audience);
 		if (options != undefined) {
 			this.verifyOptions = options;
-		} else {
-			throw new Error("No keys given for verification");
 		}
+		const { didDocument } = await secp256k1.resolve(
+			this.vp.proof.verificationMethod,
+			{ accept: 'application/did+json' }
+		);
+		const publicKey = (didDocument.verificationMethod[0] as PublicNodeWithPublicKeyJwk).publicKeyJwk;
+		const controller = didDocument.verificationMethod[0].controller;
 
 		var result = true;
 		var validations: DetailedVerifyResults = {
@@ -450,9 +457,9 @@ export class LdpVP extends VP {
 			const jsonwebkey2020: JsonWebKey2020 = {
 				id: "1",
 				type: 'JsonWebKey2020',
-				controller: "",
-				privateKeyJwk: options.keys.privateKeyJwk,
-				publicKeyJwk: options.keys.publicKeyJwk
+				controller: controller,
+				privateKeyJwk: null,
+				publicKeyJwk: publicKey
 			}
 			const k = await Secp256k1KeyPair.from(jsonwebkey2020);
 			const verifier = JWS.createVerifier(k.verifier(), 'ES256K', {
@@ -471,9 +478,7 @@ export class LdpVP extends VP {
 
 			// Step 3. Validate each contained VC on the presentation
 			const credentialList = this.vp.verifiableCredential;
-			console.log("credentialList: ", credentialList)
 			for (const vc of credentialList) {
-				console.log("one vc: ", JSON.parse(vc))
 				const genericVC = VC.vcBuilder(vc);
 				const { result } = await genericVC.verify(this.verifyOptions);
 				if (!result) { // is invalid

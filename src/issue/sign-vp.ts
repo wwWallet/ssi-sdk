@@ -265,6 +265,11 @@ export class SignVerifiablePresentationLDP {
 		return this;
 	}
 
+	setVerificationMethod(verificationMethod: string): this {
+		this.vp.proof.verificationMethod = verificationMethod;
+		return this;
+	}
+
 	async sign(keys: any, cryptosuite: string): Promise<string> {
 		this.vp.proof.cryptosuite = cryptosuite;
 		this.vp.proof.created = new Date().toISOString();
