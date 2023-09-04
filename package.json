@@ -40,6 +40,9 @@
   "dependencies": {
     "@cef-ebsi/ebsi-did-resolver": "^3.1.0",
     "@cef-ebsi/key-did-resolver": "^1.0.0",
+    "@transmute/did-key-secp256k1": "^0.3.0-unstable.10",
+    "@transmute/jose-ld": "^0.7.0-unstable.81",
+    "@transmute/secp256k1-key-pair": "^0.7.0-unstable.81",
     "ajv": "^8.11.0",
     "ajv-formats": "^2.1.1",
     "axios": "^0.27.2",

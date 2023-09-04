@@ -1,5 +1,7 @@
 import { JWTHeaderParameters, KeyLike, SignJWT, SignOptions } from "jose";
-
+import crypto from "crypto"
+import { JsonWebKey2020, Secp256k1KeyPair } from "@transmute/secp256k1-key-pair";
+import { JWS } from '@transmute/jose-ld';
 /**
  * The SignVerifiableCredentialJWT class is a utility for creating
  * Valid Compact JWS formatted JWT strings representing a Verifiable Credential.
@@ -201,4 +203,196 @@ export class SignVerifiableCredentialJWT<CredentialSubjectType> extends SignJWT 
 		return jwt;
 	}
 
+}
+
+
+/**
+ * The SignVerifiableCredentialJsonLD class is a utility for creating
+ * Valid Compact JWS formatted JWT strings representing a Verifiable Credential.
+ *
+ * @example Usage
+ *
+ * ```ts
+ * const jwtvc = await new SignVerifiableCredentialJsonLD()
+		.setCredentialSubject(credentialSubject)
+		.setContext(context)
+		.setType(credentialType)
+		.setIssuer(issuerDid)
+		.setIssuedAt()
+		.setAudience(holderDID)
+		.setJti(`urn:id:${randomUUID()}`)
+		.setCredentialSchema(schemaURL, "FullJsonSchemaValidator2021")
+		.sign(await importJWK(jwk, alg), cryptosuite);
+*
+ * ```
+ */
+export class SignVerifiableCredentialJsonLD<CredentialSubjectType> {
+	private vc: {
+		"@context": string[];
+		type: string[];
+		id: string;
+		issuer: string;
+		audience: string;
+		issuanceDate: string;
+		issued: string;
+		validFrom: string;
+		expirationDate?: string;
+		credentialSubject: CredentialSubjectType;
+		credentialSchema: {
+			id: string;
+			type: string;
+		};
+		proof: {
+			type: string,
+			cryptosuite?: string,
+			created?: string,
+			verificationMethod: string,
+			proofPurpose: string,
+			proofValue: string
+		}
+	};
+
+	constructor() {
+		// Initialize vc attribute to maintain ordered structure even though JSONs are unordered
+		this.vc = {
+			"@context": [],
+			type: [],
+			id: "",
+			issuer: "",
+			audience: "",
+			issuanceDate: "",
+			issued: "",
+			validFrom: "",
+			credentialSubject: {} as CredentialSubjectType,
+			credentialSchema: {
+				id: "",
+				type: "",
+			},
+			proof: {
+				type: "DataIntegrityProof",
+				cryptosuite: "",
+				created: "",
+				verificationMethod: "",
+				proofPurpose: "assertionMethod",
+				proofValue: ""
+			}
+		};
+	}
+
+	setCredentialSubject(credentialSubject: any): this {
+		this.vc.credentialSubject = credentialSubject;
+		return this;
+	}
+
+	/**
+	 * Set Verifiable Credential Issuer
+	 * Also sets "issuer" VC attribute.
+	 * @param issuer: the issuer to be set
+	*/
+	setIssuer(issuer: string): this {
+		this.vc.issuer = issuer;
+		return this;
+	}
+	/**
+	 * Set Verifiable Credential ID Value
+	 * Sets "id" VC attribute.
+	 * @param jwtId: the ID Value to be used
+	*/
+	setJti(jwtId: string): this {
+		this.vc.id = jwtId;
+		return this;
+	}
+
+
+	/**
+	 * Set Verifiable Credential Issuance Date
+	 * Sets "issuanceDate", "issued", and "validFrom" VC attributes.
+	 * @param input Date timestamp. Default is current timestamp.
+	*/
+	setIssuedAt(date: Date): this {
+		this.vc.issuanceDate = date.toISOString();
+		this.vc.issued = date.toISOString();
+		this.vc.validFrom = date.toISOString();
+		return this;
+	}
+	/**
+	 * Set Credential Schema for Verifiable Credential
+	 * Sets "credentialSchema" VC attribute.
+	 * @param schemaUri: the schema URI to be set as credentialSchema ID
+	 * @param type: the type of schema. Default: "FullJsonSchemaValidator2021"
+	*/
+	setCredentialSchema(schemaUri: string, type: string = "FullJsonSchemaValidator2021"): this {
+		this.vc["credentialSchema"] = {
+			id: schemaUri,
+			type: type
+		};
+		return this;
+	}
+
+	/**
+	 * Sets Verifiable Credential "@contect" attribute.
+	 * @param context: The array of context URIs to be set as the "@context" attribute
+	*/
+	setContext(context: string[]): this {
+		this.vc["@context"] = context;
+		return this;
+	}
+
+	/**
+	 * Sets Verifiable Credential "type" attribute.
+	 * @param type: The array of types to be set as the "type" attribute
+	*/
+	setType(type: string[]): this {
+		this.vc["type"] = type;
+		return this;
+	}
+
+	/**
+	 * Set Verifiable Credential Audience
+	 * Also sets "audience" VC attribute.
+	 * @param audience: the audience to be set
+	*/
+	setAudience(audience: string): this {
+		this.vc.audience = audience;
+		return this;
+	}
+
+	/**
+ * Set Verification Method
+ * @param verificationMethod: the did to resolve the public key
+ * @throws - Error if neither 'kid' nor 'jwk' header parameters are given
+*/
+	setVerificationMethod(verificationMethod: string): this {
+		this.vc.proof.verificationMethod = verificationMethod;
+		return this;
+	}
+
+	/**
+	 * Sign and return the JSON-LD VC with the added proof object.
+	 * @param privateKey private key used for signing.
+	 * @param proofType Type of proof to be used (e.g., EcdsaSecp256k1Signature2019).
+	 */
+	async sign(keys: any, cryptosuite: string): Promise<string> {
+		this.vc.proof.cryptosuite = cryptosuite;
+		this.vc.proof.created = new Date().toISOString();
+
+		const dataToSign = JSON.stringify(this.vc);
+
+		const hash = crypto.createHash('sha256').update(dataToSign).digest();
+
+		const jsonwebkey2020: JsonWebKey2020 = {
+			id: "1",
+			type: 'JsonWebKey2020',
+			controller: "",
+			privateKeyJwk: keys.privateKeyJwk,
+			publicKeyJwk: keys.publicKeyJwk
+		}
+		const k = await Secp256k1KeyPair.from(jsonwebkey2020);
+		const signer = JWS.createSigner(k.signer(), 'ES256K', { detached: false })
+		const signature = await signer.sign({ data: hash });
+
+		this.vc.proof.proofValue = signature;
+
+		return JSON.stringify(this.vc);
+	}
 }

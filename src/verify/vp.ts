@@ -12,6 +12,10 @@ import { LegalEntityResolver } from "./ResolverInterfaces/LegalEntityResolver";
 import PublicKeyResolverBuilder from './PublicKeyResolverBuilder';
 import { didKeyPublicKeyAdapter } from './Adapters/DidKeyPublicKeyAdapter';
 import { didEbsiPublicKeyAdapter } from './Adapters/DidEbsiPublicKeyAdapter';
+import { JsonWebKey2020, Secp256k1KeyPair } from "@transmute/secp256k1-key-pair";
+import { JWS } from "@transmute/jose-ld";
+import * as secp256k1 from '@transmute/did-key-secp256k1';
+import { PublicNodeWithPublicKeyJwk } from '@transmute/ld-key-pair';
 
 export abstract class VP {
 	verifyOptions: VerifyOptions = defaultVerifyOptions;
@@ -53,7 +57,7 @@ export class JwtVP extends VP {
 	public jwtProof: string;
 
 	/**
-	 * 
+	 *
 	 * @param presentation - The VP in JWT format
 	 */
 	constructor(private presentation: string) {
@@ -86,11 +90,11 @@ export class JwtVP extends VP {
 	}
 
 	/**
-	 * 
+	 *
 	 * @param audience - Expected audience in uri format (can be DID or URL)
 	 * @param publicKeyJwk - Public key of the VP issuer in JWK format
 	 * @param options - Change the options to suppress checks in developer mode
-	 * @returns 
+	 * @returns
 	 */
 	public async verify(audience: string | string[], options?: VerifyOptions): Promise<{ result: boolean, msg: string, validations: DetailedVerifyResults }> {
 
@@ -390,5 +394,106 @@ export class JwtVP extends VP {
 			throw new Error('VP_SCHEMA_VALIDATION_FAIL');
 		}
 		return true;
+	}
+}
+
+export class LdpVP extends VP {
+	public ldpProof: any;
+	public vp: any;
+
+	/**
+	 *
+	 * @param presentation - The VP in LDP format
+	 */
+	constructor(presentation: any ) {
+		super();
+		this.vp = JSON.parse(presentation);
+	}
+
+	public getIssuer(): string | undefined {
+		return this.vp.issuer;
+	}
+	public getAudience(): string | string[] | undefined {
+		return this.vp.audience;
+	}
+
+	public getIdentifier(): string | undefined {
+		return this.vp.id;
+	}
+	public getIssDate(): number | undefined {
+		return this.vp.issuanceDate;
+	}
+
+	/**
+	 * 
+	 * @param audience - Expected audience in uri format (can be DID or URL)
+	 * @param publicKeyJwk - Public key of the VP issuer in JWK format
+	 * @param options - Change the options to suppress checks in developer mode
+	 * @returns 
+	 */
+	public async verify(audience: string | string[], options?: VerifyOptions | undefined): Promise<{ result: boolean , msg: string, validations: DetailedVerifyResults}> {
+		console.log("proof: ", this.vp.proof);
+		console.log("aud: ", audience);
+		if (options != undefined) {
+			this.verifyOptions = options;
+		}
+		const { didDocument } = await secp256k1.resolve(
+			this.vp.proof.verificationMethod,
+			{ accept: 'application/did+json' }
+		);
+		const publicKey = (didDocument.verificationMethod[0] as PublicNodeWithPublicKeyJwk).publicKeyJwk;
+		const controller = didDocument.verificationMethod[0].controller;
+
+		var result = true;
+		var validations: DetailedVerifyResults = {
+			constraintValidation: undefined,
+			signatureValidation: undefined,
+			attributeMappingValidation: undefined,
+			schemaValidation: undefined
+		}
+		var errorMsgs: string[] = [];
+		try {
+			// Step 1. Create verifier
+			const jsonwebkey2020: JsonWebKey2020 = {
+				id: "1",
+				type: 'JsonWebKey2020',
+				controller: controller,
+				privateKeyJwk: null,
+				publicKeyJwk: publicKey
+			}
+			const k = await Secp256k1KeyPair.from(jsonwebkey2020);
+			const verifier = JWS.createVerifier(k.verifier(), 'ES256K', {
+				detached: false,
+			});
+
+			// Step 2. Verify signature using the Holder's public key
+			const signatureValue = this.vp.proof.proofValue;
+			const dataToVerify = this.vp;
+			delete dataToVerify.proof;
+
+			result = await verifier.verify({
+				data: dataToVerify,
+				signature: signatureValue,
+			});
+
+			// Step 3. Validate each contained VC on the presentation
+			const credentialList = this.vp.verifiableCredential;
+			for (const vc of credentialList) {
+				const genericVC = VC.vcBuilder(vc);
+				const { result } = await genericVC.verify(this.verifyOptions);
+				if (!result) { // is invalid
+					console.error('At least one invalid VC is contained in the Presentation');
+					throw new Error('INVALID_VC');
+				}
+			}
+		}
+		catch (err) {
+			console.error(err);
+			result = false;
+		}
+
+		const msg: string = errorMsgs.join();
+
+		return { result, msg, validations };
 	}
 }
