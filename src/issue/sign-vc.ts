@@ -24,22 +24,7 @@ import { JWTHeaderParameters, KeyLike, SignJWT, SignOptions } from "jose";
  * ```
  */
 export class SignVerifiableCredentialJWT<CredentialSubjectType> extends SignJWT {
-	private vc: {
-		"@context": string[];
-		type: string[];
-		id: string;
-		issuer: string;
-		audience: string;
-		issuanceDate: string;
-		issued: string;
-		validFrom: string;
-		expirationDate?: string;
-		credentialSubject: CredentialSubjectType;
-		credentialSchema: {
-			id: string,
-			type: string
-		}
-	};
+	private vc: any;
 
 	constructor() {
 
@@ -188,6 +173,13 @@ export class SignVerifiableCredentialJWT<CredentialSubjectType> extends SignJWT 
 			throw new Error("'kid' or 'jwk' must be defined");
 		super.setProtectedHeader(protectedHeader);
 		return this;	
+	}
+
+
+	// generic function for any other attribute
+	setAttribute(attributeName: string, attributeValue: any): this {
+		this.vc[attributeName] = attributeValue;
+		return this;
 	}
 
 	/**
