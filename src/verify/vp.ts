@@ -12,7 +12,7 @@ import { LegalEntityResolver } from "./ResolverInterfaces/LegalEntityResolver";
 import PublicKeyResolverBuilder from './PublicKeyResolverBuilder';
 import { didKeyPublicKeyAdapter } from './Adapters/DidKeyPublicKeyAdapter';
 import { didEbsiPublicKeyAdapter } from './Adapters/DidEbsiPublicKeyAdapter';
-import { PresentationSubmission } from "src/types";
+import { PresentationSubmission } from "../types";
 import { JSONPath } from "jsonpath-plus";
 
 export abstract class VP {
