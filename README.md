@@ -12,13 +12,13 @@
 ## Installation
 
 ```
-yarn add @gunet/ssi-sdk
+yarn add @wwwallet/ssi-sdk
 ```
 
 For npm:
 
 ```
-npm i @gunet/ssi-sdk
+npm i @wwwallet/ssi-sdk
 ```
 
 
