@@ -1,5 +1,5 @@
 {
-  "name": "@wwwallet/ssi-sdk",
+  "name": "@wwWallet/ssi-sdk",
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
@@ -15,14 +15,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wwwallet/ssi-sdk.git"
+    "url": "git+https://github.com/wwWallet/ssi-sdk.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/wwwallet/ssi-sdk/issues"
+    "url": "https://github.com/wwWallet/ssi-sdk/issues"
   },
-  "homepage": "https://github.com/wwwallet/ssi-sdk#readme",
+  "homepage": "https://github.com/wwWallet/ssi-sdk#readme",
   "devDependencies": {
     "@types/express": "^4.17.17",
     "@types/jest": "^29.4.0",
