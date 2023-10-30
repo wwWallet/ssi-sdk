@@ -16,23 +16,7 @@ import { KeyLike, SignJWT } from "jose";
 export class SignVerifiablePresentationJWT extends SignJWT {
 
 
-	private vp: {
-		"@context": string[];
-		type: string[];
-		holder: string;
-		id: string;
-		audience: string | string[];
-		verifiableCredential: any[];
-		issuanceDate: string;
-		issuer: string;
-		issued: string;
-		validFrom: string;
-		expirationDate: string;
-		credentialSchema: {
-			id: string;
-			type: string;
-		}
-	};
+	private vp: any;
 	/**
 	 * 
 	 * @param verifiableCredential must be in jwt_vc format or array of jwt_vc
@@ -47,7 +31,7 @@ export class SignVerifiablePresentationJWT extends SignJWT {
 			holder: "",
 			id: "",
 			verifiableCredential: [],
-			issuer: "",
+			issuer: undefined,
 			audience: "",
 			issued: "",
 			issuanceDate: "",
@@ -76,8 +60,14 @@ export class SignVerifiablePresentationJWT extends SignJWT {
 		return this;
 	}
 
-	override setIssuer(issuer: string): this {
-		super.setIssuer(issuer);
+	override setIssuer(issuer: string | any): this {
+		if (typeof issuer == 'string') {
+			super.setIssuer(issuer);
+		}
+		else {
+			super.setIssuer(issuer.id);
+		}
+
 		this.vp.issuer = issuer;
 		return this;
 	}

@@ -34,7 +34,7 @@ export class SignVerifiableCredentialJWT<CredentialSubjectType> extends SignJWT 
 			"@context": [],
 			type: [],
 			id: "",
-			issuer: "",
+			issuer: undefined,
 			audience: "",
 			issuanceDate: "",
 			issued: "",
@@ -110,8 +110,14 @@ export class SignVerifiableCredentialJWT<CredentialSubjectType> extends SignJWT 
 	 * Also sets "issuer" VC attribute.
 	 * @param issuer: the issuer to be set
 	*/
-	override setIssuer(issuer: string): this {
-		super.setIssuer(issuer);
+	override setIssuer(issuer: string | any): this {
+		if (typeof issuer == 'string') {
+			super.setIssuer(issuer);
+		}
+		else {
+			super.setIssuer(issuer.id);
+		}
+
 		this.vc.issuer = issuer;
 		return this;
 	}
