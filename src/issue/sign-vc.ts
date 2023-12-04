@@ -23,7 +23,7 @@ import { JWTHeaderParameters, KeyLike, SignJWT, SignOptions } from "jose";
 *
  * ```
  */
-export class SignVerifiableCredentialJWT<CredentialSubjectType> extends SignJWT {
+export class SignVerifiableCredentialJWT extends SignJWT {
 	private vc: any;
 
 	constructor() {
@@ -39,7 +39,7 @@ export class SignVerifiableCredentialJWT<CredentialSubjectType> extends SignJWT 
 			issuanceDate: "",
 			issued: "",
 			validFrom: "",
-			credentialSubject: { } as CredentialSubjectType,
+			credentialSubject: { } as any,
 			credentialSchema: {
 				id: "",
 				type: ""
