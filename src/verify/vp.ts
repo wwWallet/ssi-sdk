@@ -113,9 +113,9 @@ export class JwtVP extends VP {
 				if (vc.jwtPayloadJson.exp && vc.jwtPayloadJson.exp < Date.now()) {
 					throw new Error("presentation_submission.descriptor_map[x].id is expired");
 				}
-				if (vc.jwtPayloadJson.nbf && vc.jwtPayloadJson.nbf > Date.now()) {
-					throw new Error("presentation_submission.descriptor_map[x].id is not yet valid");
-				}
+				// if (vc.jwtPayloadJson.nbf && vc.jwtPayloadJson.nbf > Date.now()) {
+				// 	throw new Error("presentation_submission.descriptor_map[x].id is not yet valid");
+				// }
 			}
 		}
 
@@ -207,13 +207,13 @@ export class JwtVP extends VP {
 		}
 		
 		// Check if it is too early to use vp
-		if(this.jwtPayloadJson.nbf) {
-			const validFromDate = this.jwtPayloadJson.nbf * 1000;
-			if( curDate <= validFromDate) {
-				console.error('Verifiable Presentation cannot be accessed before nbf date');
-				throw new Error('INVALID_NBF');
-			}
-		}
+		// if(this.jwtPayloadJson.nbf) {
+		// 	const validFromDate = this.jwtPayloadJson.nbf * 1000;
+		// 	if( curDate <= validFromDate) {
+		// 		console.error('Verifiable Presentation cannot be accessed before nbf date');
+		// 		throw new Error('INVALID_NBF');
+		// 	}
+		// }
 
 		// Check audience
 		const vpAud = this.jwtPayloadJson.aud;
@@ -306,10 +306,10 @@ export class JwtVP extends VP {
 		}
 
 		// nbf → validFrom/issuanceDate
-		if(this.jwtPayloadJson.nbf != undefined && this.jwtPayloadJson.nbf != moment(this.jwtPayloadJson.vp.validFrom).unix()){
-			console.error('JWT nbf and vp validFrom do not match');
-			throw new Error('NBF_VALIDFROM_MISMATCH');
-		}
+		// if(this.jwtPayloadJson.nbf != undefined && this.jwtPayloadJson.nbf != moment(this.jwtPayloadJson.vp.validFrom).unix()){
+		// 	console.error('JWT nbf and vp validFrom do not match');
+		// 	throw new Error('NBF_VALIDFROM_MISMATCH');
+		// }
 		// if(this.jwtPayloadJson.nbf != moment(this.jwtPayloadJson.vp.issuanceDate).unix()){
 		// 	throw new Error('JWT nbf and vp issuanceDate do not match');
 		// }

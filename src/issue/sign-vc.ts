@@ -54,7 +54,7 @@ export class SignVerifiableCredentialJWT extends SignJWT {
 
 	/**
 	 * Set Verifiable Credential Issuance Date
-	 * Sets "iat" (Issued At) and "nbf" (Not Before) JWT Claims.
+	 * Sets "iat" (Issued At) JWT Claims.
 	 * Also sets "issuanceDate", "issued", and "validFrom" VC attributes.
 	 * @param input Date timestamp. Default is current timestamp.
 	*/

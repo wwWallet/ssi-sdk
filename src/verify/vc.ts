@@ -220,13 +220,13 @@ export class JwtVC extends VC {
 		}
 		
 		// Check if it is too early to use vc
-		if(this.jwtPayloadJson.nbf) {
-			const validFromDate = this.jwtPayloadJson.nbf * 1000;
-			if( curDate <= validFromDate) {
-				console.error('Verifiable Credential cannot be accessed before nbf date');
-				throw new Error('INVALID_NBF');
-			}
-		}
+		// if(this.jwtPayloadJson.nbf) {
+		// 	const validFromDate = this.jwtPayloadJson.nbf * 1000;
+		// 	if( curDate <= validFromDate) {
+		// 		console.error('Verifiable Credential cannot be accessed before nbf date');
+		// 		throw new Error('INVALID_NBF');
+		// 	}
+		// }
 
 		// // Check audience
 		// const vcAud = this.jwtPayloadJson.aud;
@@ -307,14 +307,14 @@ export class JwtVC extends VC {
 		}
 
 		// nbf → validFrom/issuanceDate
-		if(this.jwtPayloadJson.nbf != moment(this.jwtPayloadJson.vc.validFrom).unix()){
-			console.error('JWT nbf and vc validFrom do not match');
-			throw new Error('NBF_VALIDFROM_MISMATCH');
-		}
-		if(this.jwtPayloadJson.nbf != moment(this.jwtPayloadJson.vc.issuanceDate).unix()){
-			console.error('JWT nbf and vc issuanceDate do not match');
-			throw new Error('NBF_ISSUANCEDATE_MISMATCH');
-		}
+		// if(this.jwtPayloadJson.nbf != moment(this.jwtPayloadJson.vc.validFrom).unix()){
+		// 	console.error('JWT nbf and vc validFrom do not match');
+		// 	throw new Error('NBF_VALIDFROM_MISMATCH');
+		// }
+		// if(this.jwtPayloadJson.nbf != moment(this.jwtPayloadJson.vc.issuanceDate).unix()){
+		// 	console.error('JWT nbf and vc issuanceDate do not match');
+		// 	throw new Error('NBF_ISSUANCEDATE_MISMATCH');
+		// }
 
 		// exp → expirationDate
 		if(this.jwtPayloadJson.exp !== moment(this.jwtPayloadJson.vc.expirationDate).unix()){
