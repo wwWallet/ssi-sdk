@@ -81,7 +81,6 @@ export class SignVerifiablePresentationJWT extends SignJWT {
 	override setIssuedAt(input?: number): this {
 		super.setIssuedAt(input);	// this function sets iat
 		if(this._payload.iat) {	// due to the above line, these are safe
-			super.setNotBefore(this._payload.iat);
 			this.vp["issuanceDate"] = new Date(this._payload.iat * 1000).toISOString();
 			this.vp["issued"] = new Date(this._payload.iat * 1000).toISOString();
 			this.vp["validFrom"] = new Date(this._payload.iat * 1000).toISOString();
