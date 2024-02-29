@@ -56,7 +56,7 @@ export class Verify {
 				}
 				const descriptorMapElem: DescriptorMapElement = {
 					id: inputDescriptor.id,
-					format: "jwt_vc",
+					format: vcJwt.includes('~') ? "vc+sd-jwt" : "jwt_vc",
 					path: `$.verifiableCredential[${index++}]`,
 					// path_nested: {
 					// 	format: "jwt_vc",
@@ -101,7 +101,7 @@ export class Verify {
     return true;
   }
 
-  private static verifyField(vcJSON: any, filter: any, path: string): boolean {
+  private static verifyField(vcJSON: any, filter: any | undefined, path: string): boolean {
     const ajv = new Ajv();
     // each vc of path p must conform with filter
     // 1. get VC(p) value
@@ -112,6 +112,9 @@ export class Verify {
     // console.log("Path = ", path)
     // console.log("Json = ", vcJSON)
     const vcValueByPath = JSONPath({ path: path, json: vcJSON })[0];
+		if (!filter) { // if filter is undefined
+			return true;
+		}
     const validate = ajv.compile(filter);
     const validityStatus = validate(vcValueByPath);
 
